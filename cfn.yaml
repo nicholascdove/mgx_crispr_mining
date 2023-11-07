@@ -1,0 +1,61 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  TAG:
+    Type: String
+    Default: test
+  Stage:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+
+Mappings:
+  ResourceNames:
+    dev:
+      jobdefname: awsbatch_run_cctyper_dev
+      reponame: awsbatch/awsbatch_run_cctyper_dev
+    prod:
+      jobdefname: awsbatch_run_cctyper
+      reponame: awsbatch/awsbatch_run_cctyper
+
+
+Resources:
+  AwsBatchRunCctyperJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !FindInMap [ResourceNames, !Ref Stage, jobdefname]
+      Type: container
+      ContainerProperties:
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AwsBatchRunCctyperEcrRepository}:${TAG}"
+        Vcpus: 64
+        Memory: 60000
+        Volumes:
+        - Host:
+            SourcePath: /mnt/efs/gtdb_data/release207_v2
+          Name: cc_data
+        MountPoints:
+        - ContainerPath: /ccdata
+          ReadOnly: false
+          SourceVolume: cc_data
+        Environment:
+          - Name: TAG
+            Value: !Ref TAG
+          - Name: FILENAME_LIST_S3_URL
+            Value: "s3://agbiome-isolate-assemblies"
+          - Name: INPUT_BUCKET_S3_URL
+            Value: "s3://agbiome-metagenome-data/metagenome-assemblies/"
+          - Name: FILENAME
+            Value: "AGBI-103-AMG000011_S55_full.final.contigs.fasta"
+          - Name: CPU
+            Value: 64
+          - Name: OUTPUT_BUCKET
+            Value: "s3://agbiome-metagenome-data/cctyper-output/"
+      RetryStrategy:
+        Attempts: 3
+
+  AwsBatchRunCctyperEcrRepository:
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: !FindInMap [ResourceNames, !Ref Stage, reponame]
